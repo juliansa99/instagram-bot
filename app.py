@@ -49,7 +49,7 @@ def generate_caption(image_base64: str, media_type: str) -> str:
             "Content-Type": "application/json"
         },
         json={
-            "model": "google/gemini-flash-1.5",
+            "model": "google/gemini-2.0-flash-001",
             "messages": [{
                 "role": "user",
                 "content": [
