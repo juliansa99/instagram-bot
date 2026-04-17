@@ -1,5 +1,4 @@
 import os
-import base64
 import sqlite3
 import requests
 import cloudinary
@@ -43,7 +42,10 @@ def get_db():
     return con
 
 def generate_caption(image_base64: str, media_type: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY
+    }
     payload = {
         "contents": [{
             "parts": [
@@ -70,11 +72,22 @@ Respondé SOLO con el pie de foto. Sin comillas, sin explicaciones."""
         }],
         "generationConfig": {"maxOutputTokens": 600}
     }
-    res = requests.post(url, json=payload)
+
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    res = requests.post(url, json=payload, headers=headers)
     data = res.json()
-    if "candidates" not in data:
-        raise Exception(f"Error Gemini: {data}")
-    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    if "candidates" in data:
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    url2 = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    res2 = requests.post(url2, json=payload)
+    data2 = res2.json()
+
+    if "candidates" in data2:
+        return data2["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    raise Exception(f"Error Gemini: {data2}")
 
 def publish_to_instagram(image_url: str, caption: str) -> dict:
     container_res = requests.post(
