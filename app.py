@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-GEMINI_API_KEY  = os.environ.get("GEMINI_API_KEY")
-IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN")
-IG_ACCOUNT_ID   = os.environ.get("IG_ACCOUNT_ID")
-CLOUDINARY_URL  = os.environ.get("CLOUDINARY_URL")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+IG_ACCESS_TOKEN    = os.environ.get("IG_ACCESS_TOKEN")
+IG_ACCOUNT_ID      = os.environ.get("IG_ACCOUNT_ID")
+CLOUDINARY_URL     = os.environ.get("CLOUDINARY_URL")
 
 cloudinary.config(cloudinary_url=CLOUDINARY_URL)
 
@@ -42,21 +42,26 @@ def get_db():
     return con
 
 def generate_caption(image_base64: str, media_type: str) -> str:
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
-    }
-    payload = {
-        "contents": [{
-            "parts": [
-                {
-                    "inline_data": {
-                        "mime_type": media_type,
-                        "data": image_base64
-                    }
-                },
-                {
-                    "text": """Sos experto en marketing de productos capilares para el mercado argentino.
+    res = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "google/gemini-flash-1.5",
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{media_type};base64,{image_base64}"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": """Sos experto en marketing de productos capilares para el mercado argentino.
 Analizá esta imagen de un producto capilar y escribí un pie de foto para Instagram.
 Reglas:
 - Español rioplatense (Argentina)
@@ -67,27 +72,16 @@ Reglas:
 - Longitud total: 150-250 palabras
 - Usá entre 3 y 5 emojis
 Respondé SOLO con el pie de foto. Sin comillas, sin explicaciones."""
-                }
-            ]
-        }],
-        "generationConfig": {"maxOutputTokens": 600}
-    }
-
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-    res = requests.post(url, json=payload, headers=headers)
+                    }
+                ]
+            }],
+            "max_tokens": 600
+        }
+    )
     data = res.json()
-
-    if "candidates" in data:
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-    url2 = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    res2 = requests.post(url2, json=payload)
-    data2 = res2.json()
-
-    if "candidates" in data2:
-        return data2["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-    raise Exception(f"Error Gemini: {data2}")
+    if "choices" not in data:
+        raise Exception(f"Error OpenRouter: {data}")
+    return data["choices"][0]["message"]["content"].strip()
 
 def publish_to_instagram(image_url: str, caption: str) -> dict:
     container_res = requests.post(
