@@ -46,8 +46,9 @@
   .progress-text { font-size: 12px; color: var(--muted); }
 
   /* COLA */
-  .queue-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .queue-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
   .queue-header h2 { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .queue-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .queue-stats { display: flex; gap: 12px; }
   .stat { font-size: 12px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); }
   .stat b { font-weight: 600; }
@@ -126,10 +127,13 @@
   <!-- COLA -->
   <div class="queue-header">
     <h2>Cola de publicaciones</h2>
-    <div class="queue-stats">
-      <div class="stat pending">Pendientes: <b id="stat-pending">0</b></div>
-      <div class="stat published">Publicados: <b id="stat-published">0</b></div>
-      <div class="stat error">Errores: <b id="stat-error">0</b></div>
+    <div class="queue-header-right">
+      <div class="queue-stats">
+        <div class="stat pending">Pendientes: <b id="stat-pending">0</b></div>
+        <div class="stat published">Publicados: <b id="stat-published">0</b></div>
+        <div class="stat error">Errores: <b id="stat-error">0</b></div>
+      </div>
+      <button class="btn btn-red" id="btn-delete-all" onclick="deleteAll()" style="display:none">🗑 Eliminar todo</button>
     </div>
   </div>
   <div id="queue-list"></div>
@@ -215,6 +219,11 @@ async function loadQueue() {
   document.getElementById('stat-pending').textContent   = pending;
   document.getElementById('stat-published').textContent = published;
   document.getElementById('stat-error').textContent     = errors;
+
+  // Mostrar/ocultar botón eliminar todo
+  const btnDeleteAll = document.getElementById('btn-delete-all');
+  const deletable = posts.filter(p => p.status !== 'published');
+  btnDeleteAll.style.display = deletable.length ? 'inline-block' : 'none';
 
   const list = document.getElementById('queue-list');
   if (!posts.length) {
@@ -321,6 +330,27 @@ async function retryPost(id) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status: 'pending' })
   });
+  loadQueue();
+}
+
+// ─── ELIMINAR TODO ────────────────────────────────────────────────────────────
+async function deleteAll() {
+  if (!confirm('¿Eliminar TODOS los posts de la cola? Esta acción no se puede deshacer.')) return;
+
+  const res   = await fetch('/api/queue');
+  const posts = await res.json();
+  const deletable = posts.filter(p => p.status !== 'published');
+
+  if (!deletable.length) {
+    showToast('No hay posts para eliminar', 'err');
+    return;
+  }
+
+  for (const p of deletable) {
+    await fetch('/api/post/' + p.id, { method: 'DELETE' });
+  }
+
+  showToast(`${deletable.length} posts eliminados ✓`, 'ok');
   loadQueue();
 }
 
